@@ -179,9 +179,7 @@ func (b *Bslack) JoinChannel(channel config.ChannelInfo) error {
 	}
 
 	// we can't join a channel unless we are using legacy tokens #651
-	if !channelInfo.IsMember && !b.legacy {
-		return fmt.Errorf("slack integration that matterbridge is using is not member of channel '%s', please add it manually", channelInfo.Name)
-	}
+	// Removed check for channel membership since we're only getting the channels the bot is a member of
 	return nil
 }
 

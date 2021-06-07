@@ -280,14 +280,25 @@ func (b *channels) populateChannels(wait bool) {
 	newChannelsByName := map[string]*slack.Channel{}
 	newChannelMembers := make(map[string][]string)
 
+	count := 0
+
 	// We only retrieve public and private channels, not IMs
 	// and MPIMs as those do not have a channel name.
-	queryParams := &slack.GetConversationsParameters{
+
+	// PJR - Because of how Slack does pagination, we can't be guaranteed that
+	// the configured channels can be retrieved before Slack starts rate
+	// limiting API requests.
+
+	// Thankfully, Slack provided the users.conversations endpoint, which only
+	// gets the conversations the user is a member of
+	queryParams := &slack.GetConversationsForUserParameters{
 		ExcludeArchived: true,
 		Types:           []string{"public_channel,private_channel"},
 	}
+
 	for {
-		channels, nextCursor, err := b.sc.GetConversations(queryParams)
+		channels, nextCursor, err := b.sc.GetConversationsForUser(queryParams)
+
 		if err != nil {
 			if err = handleRateLimit(b.log, err); err != nil {
 				b.log.Errorf("Could not retrieve channels: %#v", err)
@@ -312,6 +323,13 @@ func (b *channels) populateChannels(wait bool) {
 				}
 				newChannelMembers[channels[i].ID] = members
 			*/
+		}
+
+		count++
+		// more > 2000 users, slack will complain and ratelimit. break
+		if count > 10 {
+			b.log.Info("Large slack detected > 2000 channels, skipping loading complete channel list.")
+			break
 		}
 
 		if nextCursor == "" {
